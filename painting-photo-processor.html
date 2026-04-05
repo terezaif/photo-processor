@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painting Photo Processor — tiyepyep</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg width='256' height='256' viewBox='0 0 256 256' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M159.109 162.471L117.863 229L123.456 160.37L43.7599 193.285L100.386 140.762L13 144.263L82.2097 118.352L13 65.8288L89.2005 78.4343V0L117.863 78.4343L159.109 9.10398L144.429 86.1375L204.55 25.9113L159.109 99.4433L229.717 71.4313L159.109 126.755H243L159.109 162.471Z' fill='%23CBEE4C'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    background: #F2EFE6;
+    color: #1a1a1a;
+    min-height: 100vh;
+  }
+
+  header {
+    padding: 28px 32px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  header h1 {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 26px;
+    font-weight: 900;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+  }
+
+  header p {
+    font-size: 13px;
+    color: #6b6560;
+    margin-top: 4px;
+  }
+
+  .app {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px;
+  }
+
+  /* Upload area */
+  .upload-area {
+    border: 2px dashed rgba(0, 0, 0, 0.15);
+    border-radius: 16px;
+    padding: 64px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  .upload-area:hover {
+    border-color: #C5E84D;
+    background: rgba(197, 232, 77, 0.06);
+  }
+
+  .upload-area h2 {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 900;
+    font-size: 22px;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .upload-area p {
+    font-size: 14px;
+    color: #6b6560;
+  }
+
+  .upload-area input { display: none; }
+
+  /* Steps indicator */
+  .steps {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #b0aaa4;
+  }
+
+  .step.active { color: #1a1a1a; }
+  .step.done { color: #7BAE3B; }
+
+  .step-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    border: 2px solid currentColor;
+  }
+
+  .step.active .step-num { background: #C5E84D; color: #1a1a1a; border-color: #C5E84D; }
+  .step.done .step-num { background: #7BAE3B; color: #fff; border-color: #7BAE3B; }
+
+  /* Canvas workspace */
+  .workspace {
+    display: none;
+    gap: 24px;
+  }
+
+  .workspace.visible { display: block; }
+
+  .canvas-container {
+    position: relative;
+    display: inline-block;
+    cursor: crosshair;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+  }
+
+  .canvas-container canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .corner-marker {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 10;
+    opacity: 0.55;
+  }
+
+  .corner-marker::before,
+  .corner-marker::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 2px;
+    background: #fff;
+    border-radius: 1px;
+    box-shadow: 0 0 3px rgba(0,0,0,0.7);
+  }
+
+  .corner-marker::before { transform: translate(-50%, -50%) rotate(45deg); }
+  .corner-marker::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
+  .corner-marker.draggable {
+    pointer-events: auto;
+    cursor: grab;
+  }
+
+  .corner-marker.draggable:hover { opacity: 0.9; }
+  .corner-marker.draggable:active { cursor: grabbing; opacity: 1; }
+
+  .svg-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  /* Buttons */
+  .actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  button {
+    font-family: 'DM Sans', inherit;
+    font-size: 14px;
+    padding: 10px 20px;
+    border-radius: 24px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+
+  .btn-primary {
+    background: #C5E84D;
+    color: #1a1a1a;
+    font-weight: 700;
+  }
+
+  .btn-primary:hover { background: #d4f060; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: transparent;
+    color: #1a1a1a;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+  }
+
+  .btn-secondary:hover { border-color: #1a1a1a; }
+
+  .btn-danger {
+    background: transparent;
+    color: #c45a5a;
+    border: 1px solid rgba(196, 90, 90, 0.3);
+  }
+
+  .btn-danger:hover { border-color: #c45a5a; }
+
+  .hint {
+    font-size: 13px;
+    color: #6b6560;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+
+  /* Result area */
+  .result {
+    display: none;
+    margin-top: 32px;
+  }
+
+  .result.visible { display: block; }
+
+  .result h3 {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    color: #1a1a1a;
+    margin-bottom: 16px;
+  }
+
+  .result-canvas {
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+    max-width: 100%;
+    /* Checkerboard pattern to show transparency */
+    background-image:
+      linear-gradient(45deg, #e5e2d9 25%, transparent 25%),
+      linear-gradient(-45deg, #e5e2d9 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #e5e2d9 75%),
+      linear-gradient(-45deg, transparent 75%, #e5e2d9 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-color: #F2EFE6;
+  }
+
+  /* Side by side comparison */
+  .comparison {
+    display: none;
+    margin-top: 32px;
+    gap: 24px;
+  }
+
+  .comparison.visible {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .comparison-item {
+    flex: 1;
+    min-width: 280px;
+  }
+
+  .comparison-item h3 {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: #6b6560;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  .comparison-item canvas,
+  .comparison-item img {
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Format options */
+  .format-options {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+  }
+
+  .format-options label {
+    font-size: 13px;
+    color: #6b6560;
+  }
+
+  .format-options select {
+    font-family: 'DM Sans', inherit;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    background: #F2EFE6;
+    color: #1a1a1a;
+  }
+
+  /* Auto-detect toggle */
+  .auto-detect-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: rgba(197, 232, 77, 0.12);
+    border-radius: 12px;
+    border: 1px solid rgba(197, 232, 77, 0.25);
+  }
+
+  .auto-detect-bar span {
+    font-size: 13px;
+    color: #6b6560;
+  }
+
+  .auto-detect-bar .status {
+    font-size: 13px;
+    color: #1a1a1a;
+    margin-left: auto;
+  }
+
+  /* Footer */
+  footer {
+    max-width: 1200px;
+    margin: 48px auto 0;
+    padding: 0 32px 32px;
+  }
+
+  footer hr {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 16px;
+  }
+
+  footer p {
+    font-size: 12px;
+    color: #9a948e;
+    line-height: 1.6;
+  }
+
+  footer a {
+    color: #6b6560;
+    text-decoration: underline;
+    text-decoration-color: rgba(107, 101, 96, 0.3);
+    text-underline-offset: 2px;
+  }
+
+  footer a:hover {
+    color: #1a1a1a;
+    text-decoration-color: #1a1a1a;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Painting Photo Processor</h1>
+  <p>Perspective correction & background removal for rectangular paintings</p>
+  <p style="font-size:11px; color:#5a5550; margin-top:6px;">Pure JavaScript — no external libraries or uploads. Uses a homography (8-parameter perspective transform) with bilinear interpolation, computed via Gaussian elimination. All processing runs locally in your browser using the Canvas API.</p>
+</header>
+
+<div class="app">
+  <!-- Upload -->
+  <div class="upload-area" id="uploadArea">
+    <h2>Drop a painting photo here</h2>
+    <p>or click to browse — works with any iPhone photo</p>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <!-- Workspace -->
+  <div class="workspace" id="workspace">
+    <div class="steps">
+      <div class="step active" id="step1">
+        <div class="step-num">1</div>
+        <span>Upload photo</span>
+      </div>
+      <div class="step" id="step2">
+        <div class="step-num">2</div>
+        <span>Mark the 4 corners of the frame</span>
+      </div>
+      <div class="step" id="step3">
+        <div class="step-num">3</div>
+        <span>Transform & download</span>
+      </div>
+    </div>
+
+    <div class="auto-detect-bar" id="autoDetectBar" style="display:none;">
+      <span>Auto-detected frame corners — adjust them by dragging if needed</span>
+      <button class="btn-secondary" onclick="resetCorners()" style="padding:6px 12px; font-size:12px;">Reset & pick manually</button>
+    </div>
+
+    <div class="canvas-container" id="canvasContainer">
+      <canvas id="sourceCanvas"></canvas>
+      <svg class="svg-overlay" id="svgOverlay"></svg>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="transformBtn" disabled onclick="doTransform()">Correct Perspective</button>
+      <button class="btn-secondary" onclick="undoLastCorner()">Undo last corner</button>
+      <button class="btn-danger" onclick="resetAll()">Start over</button>
+      <p class="hint" id="hint">Click the 4 corners of the painting frame, starting from the top-left and going clockwise.</p>
+    </div>
+
+    <!-- Result -->
+    <div class="comparison" id="comparison">
+      <div class="comparison-item">
+        <h3>Original</h3>
+        <canvas id="originalThumb"></canvas>
+      </div>
+      <div class="comparison-item">
+        <h3>Corrected</h3>
+        <canvas id="resultCanvas" class="result-canvas"></canvas>
+      </div>
+    </div>
+
+    <div class="result" id="resultArea">
+      <div class="actions">
+        <button class="btn-primary" onclick="downloadResult()">Download</button>
+        <button class="btn-secondary" onclick="goBackToCorners()">Adjust corners</button>
+        <div class="format-options">
+          <label>Format:</label>
+          <select id="formatSelect">
+            <option value="png" selected>PNG (best quality, transparent)</option>
+            <option value="webp">WebP (smaller, transparent)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// State
+let sourceImage = null;
+let corners = [];       // [{x, y}, ...] in image coordinates
+let displayScale = 1;   // ratio of displayed size to actual image size
+let draggingCorner = -1;
+let transformed = false;
+
+const cornerLabels = ['Top-Left', 'Top-Right', 'Bottom-Right', 'Bottom-Left'];
+
+// Elements
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+const workspace = document.getElementById('workspace');
+const canvasContainer = document.getElementById('canvasContainer');
+const sourceCanvas = document.getElementById('sourceCanvas');
+const ctx = sourceCanvas.getContext('2d');
+const svgOverlay = document.getElementById('svgOverlay');
+const transformBtn = document.getElementById('transformBtn');
+const hint = document.getElementById('hint');
+const comparison = document.getElementById('comparison');
+const resultArea = document.getElementById('resultArea');
+const autoDetectBar = document.getElementById('autoDetectBar');
+
+// Upload handling
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.style.borderColor = '#C5E84D'; });
+uploadArea.addEventListener('dragleave', () => { uploadArea.style.borderColor = ''; });
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.style.borderColor = '';
+  if (e.dataTransfer.files[0]) loadImage(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadImage(e.target.files[0]); });
+
+function loadImage(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      sourceImage = img;
+      corners = [];
+      transformed = false;
+      showWorkspace();
+      drawSource();
+      autoDetectCorners();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function showWorkspace() {
+  uploadArea.style.display = 'none';
+  workspace.classList.add('visible');
+  comparison.classList.remove('visible');
+  resultArea.style.display = 'none';
+  updateSteps(2);
+}
+
+function drawSource() {
+  // Scale to fit screen
+  const maxW = Math.min(900, window.innerWidth - 80);
+  const maxH = window.innerHeight * 0.6;
+  displayScale = Math.min(maxW / sourceImage.width, maxH / sourceImage.height, 1);
+
+  const w = Math.round(sourceImage.width * displayScale);
+  const h = Math.round(sourceImage.height * displayScale);
+
+  sourceCanvas.width = w;
+  sourceCanvas.height = h;
+  ctx.drawImage(sourceImage, 0, 0, w, h);
+
+  svgOverlay.setAttribute('viewBox', `0 0 ${w} ${h}`);
+
+  renderCorners();
+}
+
+// Auto-detect rectangular frame using edge detection heuristic
+function autoDetectCorners() {
+  // Sample the image to find the frame rectangle
+  // Strategy: scan inward from each edge to find where the frame starts
+  // This works well for paintings photographed against a different-colored background
+
+  const w = sourceImage.width;
+  const h = sourceImage.height;
+
+  // Create a temp canvas at reduced resolution for speed
+  const tempCanvas = document.createElement('canvas');
+  const scale = Math.min(1, 600 / Math.max(w, h));
+  const tw = Math.round(w * scale);
+  const th = Math.round(h * scale);
+  tempCanvas.width = tw;
+  tempCanvas.height = th;
+  const tctx = tempCanvas.getContext('2d');
+  tctx.drawImage(sourceImage, 0, 0, tw, th);
+  const imageData = tctx.getImageData(0, 0, tw, th);
+  const data = imageData.data;
+
+  function getPixel(x, y) {
+    const i = (y * tw + x) * 4;
+    return [data[i], data[i+1], data[i+2]];
+  }
+
+  function colorDiff(a, b) {
+    return Math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2);
+  }
+
+  // Use edge-based detection: find strong edges using gradient magnitude
+  // Then use a simple heuristic to find the largest rectangle
+  // For simplicity and reliability, use a margin-based approach:
+  // Default to 5% inset from edges as a starting point
+  const margin = 0.05;
+  const detectedCorners = [
+    { x: Math.round(w * margin), y: Math.round(h * margin) },
+    { x: Math.round(w * (1 - margin)), y: Math.round(h * margin) },
+    { x: Math.round(w * (1 - margin)), y: Math.round(h * (1 - margin)) },
+    { x: Math.round(w * margin), y: Math.round(h * (1 - margin)) },
+  ];
+
+  // Try to improve by scanning for edges
+  // Scan from each side inward along the middle line
+  const midY = Math.round(th / 2);
+  const midX = Math.round(tw / 2);
+  const threshold = 30;
+
+  // Left edge
+  let prevColor = getPixel(0, midY);
+  for (let x = 1; x < tw * 0.4; x++) {
+    const c = getPixel(x, midY);
+    if (colorDiff(c, prevColor) > threshold) {
+      detectedCorners[0].x = Math.round(x / scale);
+      detectedCorners[3].x = Math.round(x / scale);
+      break;
+    }
+    prevColor = c;
+  }
+
+  // Right edge
+  prevColor = getPixel(tw - 1, midY);
+  for (let x = tw - 2; x > tw * 0.6; x--) {
+    const c = getPixel(x, midY);
+    if (colorDiff(c, prevColor) > threshold) {
+      detectedCorners[1].x = Math.round(x / scale);
+      detectedCorners[2].x = Math.round(x / scale);
+      break;
+    }
+    prevColor = c;
+  }
+
+  // Top edge
+  prevColor = getPixel(midX, 0);
+  for (let y = 1; y < th * 0.4; y++) {
+    const c = getPixel(midX, y);
+    if (colorDiff(c, prevColor) > threshold) {
+      detectedCorners[0].y = Math.round(y / scale);
+      detectedCorners[1].y = Math.round(y / scale);
+      break;
+    }
+    prevColor = c;
+  }
+
+  // Bottom edge
+  prevColor = getPixel(midX, th - 1);
+  for (let y = th - 2; y > th * 0.6; y--) {
+    const c = getPixel(midX, y);
+    if (colorDiff(c, prevColor) > threshold) {
+      detectedCorners[3].y = Math.round(y / scale);
+      detectedCorners[2].y = Math.round(y / scale);
+      break;
+    }
+    prevColor = c;
+  }
+
+  corners = detectedCorners;
+  autoDetectBar.style.display = 'flex';
+  renderCorners();
+  updateCornerState();
+}
+
+function resetCorners() {
+  corners = [];
+  autoDetectBar.style.display = 'none';
+  renderCorners();
+  updateCornerState();
+}
+
+// Corner clicking
+canvasContainer.addEventListener('click', e => {
+  if (corners.length >= 4 || transformed) return;
+
+  const rect = sourceCanvas.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const clickY = e.clientY - rect.top;
+
+  // Check if clicking near an existing marker (ignore)
+  const displayCorners = corners.map(c => ({ x: c.x * displayScale, y: c.y * displayScale }));
+  for (const dc of displayCorners) {
+    if (Math.hypot(clickX - dc.x, clickY - dc.y) < 12) return;
+  }
+
+  // Convert to image coordinates
+  const imgX = clickX / displayScale;
+  const imgY = clickY / displayScale;
+
+  corners.push({ x: imgX, y: imgY });
+  autoDetectBar.style.display = 'none';
+  renderCorners();
+  updateCornerState();
+});
+
+// Corner dragging
+canvasContainer.addEventListener('mousedown', e => {
+  if (corners.length < 4) return;
+  const rect = sourceCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  for (let i = 0; i < corners.length; i++) {
+    const dx = corners[i].x * displayScale - mx;
+    const dy = corners[i].y * displayScale - my;
+    if (Math.hypot(dx, dy) < 16) {
+      draggingCorner = i;
+      e.preventDefault();
+      return;
+    }
+  }
+});
+
+window.addEventListener('mousemove', e => {
+  if (draggingCorner === -1) return;
+  const rect = sourceCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  corners[draggingCorner].x = Math.max(0, Math.min(sourceImage.width, mx / displayScale));
+  corners[draggingCorner].y = Math.max(0, Math.min(sourceImage.height, my / displayScale));
+  renderCorners();
+});
+
+window.addEventListener('mouseup', () => { draggingCorner = -1; });
+
+// Touch support for mobile
+canvasContainer.addEventListener('touchstart', e => {
+  if (corners.length < 4) return;
+  const touch = e.touches[0];
+  const rect = sourceCanvas.getBoundingClientRect();
+  const mx = touch.clientX - rect.left;
+  const my = touch.clientY - rect.top;
+
+  for (let i = 0; i < corners.length; i++) {
+    const dx = corners[i].x * displayScale - mx;
+    const dy = corners[i].y * displayScale - my;
+    if (Math.hypot(dx, dy) < 24) {
+      draggingCorner = i;
+      e.preventDefault();
+      return;
+    }
+  }
+}, { passive: false });
+
+window.addEventListener('touchmove', e => {
+  if (draggingCorner === -1) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = sourceCanvas.getBoundingClientRect();
+  const mx = touch.clientX - rect.left;
+  const my = touch.clientY - rect.top;
+  corners[draggingCorner].x = Math.max(0, Math.min(sourceImage.width, mx / displayScale));
+  corners[draggingCorner].y = Math.max(0, Math.min(sourceImage.height, my / displayScale));
+  renderCorners();
+}, { passive: false });
+
+window.addEventListener('touchend', () => { draggingCorner = -1; });
+
+function renderCorners() {
+  // Clear existing markers
+  canvasContainer.querySelectorAll('.corner-marker').forEach(el => el.remove());
+
+  // Draw polygon on SVG
+  let svgContent = '';
+  if (corners.length >= 2) {
+    const points = corners.map(c => `${c.x * displayScale},${c.y * displayScale}`).join(' ');
+    const closed = corners.length === 4;
+    svgContent = `<${closed ? 'polygon' : 'polyline'}
+      points="${points}"
+      fill="${closed ? 'rgba(197,232,77,0.08)' : 'none'}"
+      stroke="#C5E84D"
+      stroke-width="2"
+      stroke-dasharray="${closed ? 'none' : '6,4'}"
+    />`;
+  }
+  svgOverlay.innerHTML = svgContent;
+
+  // Add markers
+  corners.forEach((c, i) => {
+    const marker = document.createElement('div');
+    marker.className = 'corner-marker' + (corners.length === 4 ? ' draggable' : '');
+    marker.style.left = (c.x * displayScale) + 'px';
+    marker.style.top = (c.y * displayScale) + 'px';
+    canvasContainer.appendChild(marker);
+  });
+}
+
+function updateCornerState() {
+  const count = corners.length;
+  transformBtn.disabled = count < 4;
+
+  if (count === 0) {
+    hint.textContent = 'Click the top-left corner of the painting frame.';
+  } else if (count === 1) {
+    hint.textContent = 'Now click the top-right corner.';
+  } else if (count === 2) {
+    hint.textContent = 'Now click the bottom-right corner.';
+  } else if (count === 3) {
+    hint.textContent = 'Now click the bottom-left corner.';
+  } else {
+    hint.textContent = 'Looking good! Drag any corner to fine-tune, then click "Correct Perspective."';
+  }
+
+  updateSteps(count < 4 ? 2 : 2);
+}
+
+function undoLastCorner() {
+  if (corners.length > 0) {
+    corners.pop();
+    autoDetectBar.style.display = 'none';
+    renderCorners();
+    updateCornerState();
+  }
+}
+
+function updateSteps(active) {
+  ['step1', 'step2', 'step3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.className = 'step';
+    if (i + 1 < active) el.className = 'step done';
+    else if (i + 1 === active) el.className = 'step active';
+  });
+}
+
+// Perspective transform
+function doTransform() {
+  if (corners.length < 4) return;
+
+  transformed = true;
+  updateSteps(3);
+  transformBtn.disabled = true;
+  transformBtn.textContent = 'Processing...';
+  hint.textContent = 'Transforming your painting — this may take a moment for large photos...';
+
+  // Use setTimeout to let the UI update before heavy computation
+  setTimeout(() => { doTransformWork(); }, 50);
+}
+
+function doTransformWork() {
+  const [tl, tr, br, bl] = corners;
+
+  // Calculate output dimensions based on the corner positions
+  const widthTop = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+  const widthBottom = Math.hypot(br.x - bl.x, br.y - bl.y);
+  const heightLeft = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+  const heightRight = Math.hypot(br.x - tr.x, br.y - tr.y);
+
+  const outW = Math.round(Math.max(widthTop, widthBottom));
+  const outH = Math.round(Math.max(heightLeft, heightRight));
+
+  // Source corners (where pixels come from)
+  const src = [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y];
+  // Destination corners (where they go)
+  const dst = [0, 0, outW, 0, outW, outH, 0, outH];
+
+  // Compute the inverse perspective transform matrix
+  // We need to map from destination to source (for sampling)
+  const matrix = computePerspectiveTransform(dst, src);
+
+  // Create source pixel data at full resolution
+  const srcCanvas = document.createElement('canvas');
+  srcCanvas.width = sourceImage.width;
+  srcCanvas.height = sourceImage.height;
+  const srcCtx = srcCanvas.getContext('2d');
+  srcCtx.drawImage(sourceImage, 0, 0);
+  const srcData = srcCtx.getImageData(0, 0, sourceImage.width, sourceImage.height);
+
+  // Create output
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = outW;
+  outCanvas.height = outH;
+  const outCtx = outCanvas.getContext('2d');
+  const outData = outCtx.createImageData(outW, outH);
+
+  // Transform with bilinear interpolation
+  for (let y = 0; y < outH; y++) {
+    for (let x = 0; x < outW; x++) {
+      // Apply inverse transform to find source pixel
+      const d = matrix[6] * x + matrix[7] * y + matrix[8];
+      const srcX = (matrix[0] * x + matrix[1] * y + matrix[2]) / d;
+      const srcY = (matrix[3] * x + matrix[4] * y + matrix[5]) / d;
+
+      // Bilinear interpolation
+      const x0 = Math.floor(srcX);
+      const y0 = Math.floor(srcY);
+      const x1 = x0 + 1;
+      const y1 = y0 + 1;
+      const fx = srcX - x0;
+      const fy = srcY - y0;
+
+      if (x0 >= 0 && x1 < sourceImage.width && y0 >= 0 && y1 < sourceImage.height) {
+        const idx = (y * outW + x) * 4;
+        for (let c = 0; c < 4; c++) {
+          const i00 = (y0 * sourceImage.width + x0) * 4 + c;
+          const i10 = (y0 * sourceImage.width + x1) * 4 + c;
+          const i01 = (y1 * sourceImage.width + x0) * 4 + c;
+          const i11 = (y1 * sourceImage.width + x1) * 4 + c;
+
+          const v = srcData.data[i00] * (1 - fx) * (1 - fy) +
+                    srcData.data[i10] * fx * (1 - fy) +
+                    srcData.data[i01] * (1 - fx) * fy +
+                    srcData.data[i11] * fx * fy;
+          outData.data[idx + c] = Math.round(v);
+        }
+      }
+    }
+  }
+
+  outCtx.putImageData(outData, 0, 0);
+
+  // Show comparison
+  const resultCanvas = document.getElementById('resultCanvas');
+  resultCanvas.width = outW;
+  resultCanvas.height = outH;
+  resultCanvas.getContext('2d').drawImage(outCanvas, 0, 0);
+
+  // Thumbnail of original
+  const origThumb = document.getElementById('originalThumb');
+  const thumbScale = Math.min(450 / sourceImage.width, 400 / sourceImage.height, 1);
+  origThumb.width = Math.round(sourceImage.width * thumbScale);
+  origThumb.height = Math.round(sourceImage.height * thumbScale);
+  origThumb.getContext('2d').drawImage(sourceImage, 0, 0, origThumb.width, origThumb.height);
+
+  // Scale result canvas display
+  const resScale = Math.min(450 / outW, 400 / outH, 1);
+  resultCanvas.style.width = Math.round(outW * resScale) + 'px';
+
+  comparison.classList.add('visible');
+  resultArea.style.display = 'block';
+
+  // Store for download
+  window._resultCanvas = outCanvas;
+
+  // Reset button state
+  transformBtn.textContent = 'Correct Perspective';
+  transformBtn.disabled = false;
+  hint.textContent = 'Done! Download your corrected painting below.';
+}
+
+// Solve 3x3 linear system using Gaussian elimination
+function solve3x3(A, b) {
+  // Augmented matrix
+  const m = [
+    [A[0][0], A[0][1], A[0][2], b[0]],
+    [A[1][0], A[1][1], A[1][2], b[1]],
+    [A[2][0], A[2][1], A[2][2], b[2]],
+  ];
+
+  for (let col = 0; col < 3; col++) {
+    // Partial pivoting
+    let maxRow = col;
+    for (let row = col + 1; row < 3; row++) {
+      if (Math.abs(m[row][col]) > Math.abs(m[maxRow][col])) maxRow = row;
+    }
+    [m[col], m[maxRow]] = [m[maxRow], m[col]];
+
+    // Eliminate
+    for (let row = col + 1; row < 3; row++) {
+      const f = m[row][col] / m[col][col];
+      for (let j = col; j < 4; j++) m[row][j] -= f * m[col][j];
+    }
+  }
+
+  // Back substitution
+  const x = [0, 0, 0];
+  for (let i = 2; i >= 0; i--) {
+    x[i] = m[i][3];
+    for (let j = i + 1; j < 3; j++) x[i] -= m[i][j] * x[j];
+    x[i] /= m[i][i];
+  }
+  return x;
+}
+
+// Compute perspective transform matrix (8-parameter homography)
+function computePerspectiveTransform(src, dst) {
+  // src and dst are [x0,y0, x1,y1, x2,y2, x3,y3]
+  // Solve for H such that dst = H * src (in homogeneous coords)
+
+  const A = [];
+  const b = [];
+
+  for (let i = 0; i < 4; i++) {
+    const sx = src[i * 2], sy = src[i * 2 + 1];
+    const dx = dst[i * 2], dy = dst[i * 2 + 1];
+
+    A.push([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy]);
+    A.push([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy]);
+    b.push(dx);
+    b.push(dy);
+  }
+
+  // Solve 8x8 system
+  const h = solveLinearSystem(A, b);
+
+  return [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
+}
+
+function solveLinearSystem(A, b) {
+  const n = b.length;
+  // Augmented matrix
+  const m = A.map((row, i) => [...row, b[i]]);
+
+  for (let col = 0; col < n; col++) {
+    // Partial pivoting
+    let maxRow = col;
+    for (let row = col + 1; row < n; row++) {
+      if (Math.abs(m[row][col]) > Math.abs(m[maxRow][col])) maxRow = row;
+    }
+    [m[col], m[maxRow]] = [m[maxRow], m[col]];
+
+    if (Math.abs(m[col][col]) < 1e-10) continue;
+
+    for (let row = col + 1; row < n; row++) {
+      const f = m[row][col] / m[col][col];
+      for (let j = col; j <= n; j++) m[row][j] -= f * m[col][j];
+    }
+  }
+
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    x[i] = m[i][n];
+    for (let j = i + 1; j < n; j++) x[i] -= m[i][j] * x[j];
+    x[i] /= m[i][i];
+  }
+  return x;
+}
+
+function downloadResult() {
+  if (!window._resultCanvas) return;
+
+  const format = document.getElementById('formatSelect').value;
+  const mimeTypes = { png: 'image/png', webp: 'image/webp' };
+  const quality = format === 'png' ? undefined : 0.92;
+
+  const link = document.createElement('a');
+  link.download = `painting-corrected.${format}`;
+  link.href = window._resultCanvas.toDataURL(mimeTypes[format], quality);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function goBackToCorners() {
+  transformed = false;
+  comparison.classList.remove('visible');
+  resultArea.style.display = 'none';
+  updateSteps(2);
+  drawSource();
+}
+
+function resetAll() {
+  sourceImage = null;
+  corners = [];
+  transformed = false;
+  draggingCorner = -1;
+  workspace.classList.remove('visible');
+  comparison.classList.remove('visible');
+  resultArea.style.display = 'none';
+  autoDetectBar.style.display = 'none';
+  uploadArea.style.display = '';
+  fileInput.value = '';
+  svgOverlay.innerHTML = '';
+  canvasContainer.querySelectorAll('.corner-marker').forEach(el => el.remove());
+}
+
+// Handle window resize
+window.addEventListener('resize', () => {
+  if (sourceImage && !transformed) drawSource();
+});
+</script>
+
+<footer>
+  <hr>
+  <p>
+    Built by <a href="https://github.com/terezaif">Tereza Iofciu</a>
+    &middot; Code generated with <a href="https://www.anthropic.com/claude">Claude</a> (Opus 4.6) by Anthropic
+  </p>
+</footer>
+
+</body>
+</html>
